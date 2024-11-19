@@ -6,3 +6,7 @@ build/
 
 # MacOS
 .DS_Store
+
+# IDE
+.vscode/
+.idea/
