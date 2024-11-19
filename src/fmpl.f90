@@ -39,6 +39,27 @@ contains
     write(*, *)
   end subroutine fmp_print
 
+  subroutine fmp_zero(num)
+    type(fmp_number), intent(out) :: num
+    allocate(num%digits(1))
+    num%digits(1) = 0
+    num%length = 1
+  end subroutine fmp_zero
+
+  subroutine fmp_one(num)
+    type(fmp_number), intent(out) :: num
+    allocate(num%digits(1))
+    num%digits(1) = 1
+    num%length = 1
+  end subroutine fmp_one
+
+  subroutine fmp_two(num)
+    type(fmp_number), intent(out) :: num
+    allocate(num%digits(1))
+    num%digits(1) = 2
+    num%length = 1
+  end subroutine fmp_two
+
   subroutine fmp_add(a, b, result)
     type(fmp_number), intent(in) :: a, b
     type(fmp_number), intent(out) :: result
@@ -270,6 +291,47 @@ contains
       result%length = result%length - 1
     end do
   end subroutine fmp_sqrt
+
+  subroutine fmp_cuberoot(num, result)
+    type(fmp_number), intent(inout) :: num
+    type(fmp_number), intent(out) :: result
+    type(fmp_number) :: temp, temp2, temp3
+    integer :: i, j, k, max_len, len, digit
+  
+    len = num%length
+    max_len = (len + 2) / 3
+    allocate(result%digits(max_len))
+    result%length = max_len
+    result%digits = 0
+  
+    do i = max_len, 1, -1
+      digit = 0
+      do j = 9, 0, -1
+        result%digits(i) = j
+        call fmp_mul(result, result, temp)
+        call fmp_mul(temp, result, temp2)
+        if (fmp_compare(temp2, num) <= 0) then
+          digit = j
+          exit
+        end if
+      end do
+      result%digits(i) = digit
+      call fmp_init(temp2, '0')
+      do k = 1, i - 1
+        temp2%digits(k) = result%digits(k)
+      end do
+      temp2%digits(i) = digit
+      call fmp_mul(temp2, temp2, temp3)
+      call fmp_mul(temp3, temp2, temp)
+      call fmp_subtract(num, temp, temp2)
+      num = temp2
+    end do
+  
+    do i = max_len, 1, -1
+      if (result%digits(i) /= 0) exit
+      result%length = result%length - 1
+    end do
+  end subroutine fmp_cuberoot
 
   function fmp_is_prime(num) result(is_prime)
     type(fmp_number), intent(inout) :: num
