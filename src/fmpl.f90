@@ -60,6 +60,37 @@ contains
         num%length = 1
     end subroutine fmp_two
 
+    subroutine fmp_from_real(num, real_num)
+        type(fmp_number), intent(out) :: num
+        real, intent(in) :: real_num
+        character(len=32) :: str_num
+        integer :: i, len, decimal_pos
+
+        ! Convert real number to string
+        write (str_num, '(F32.16)') real_num
+
+        ! Remove trailing spaces
+        len = len_trim(str_num)
+
+        ! Find the position of the decimal point
+        decimal_pos = index(str_num, '.')
+
+        ! Initialize the fmp_number type
+        allocate (num%digits(len - 1))  ! Exclude the decimal point
+        num%length = len - 1
+
+        ! Convert string digits to integer array
+        do i = 1, len
+            if (i /= decimal_pos) then
+                if (i < decimal_pos) then
+                    num%digits(i) = ichar(str_num(i:i)) - ichar('0')
+                else
+                    num%digits(i - 1) = ichar(str_num(i:i)) - ichar('0')
+                end if
+            end if
+        end do
+    end subroutine fmp_from_real
+
     subroutine fmp_add(a, b, result)
         type(fmp_number), intent(in) :: a, b
         type(fmp_number), intent(out) :: result
