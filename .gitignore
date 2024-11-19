@@ -1,0 +1,8 @@
+# Build files
+build/
+
+# Module files
+*.mod
+
+# MacOS
+.DS_Store
