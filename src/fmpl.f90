@@ -3,65 +3,82 @@ module fmpl
     implicit none
     private
 
-    integer(kind=8), parameter :: max_digits = 1000000000000_8 ! 1 trillion digits
-    integer, parameter :: base = 10
+    integer(kind=8), parameter :: max_digits = 3000000000000_8 ! 3 trillion digits
+    integer, parameter :: base = 1000
 
     type :: fmp_number
         integer, dimension(:), allocatable :: digits
         integer :: length
     end type fmp_number
 
-    ! Everything is public but helper functions
-    public :: fmp_number, fmp_init, fmp_print, fmp_add, fmp_subtract, fmp_mul, fmp_div, fmp_pow, fmp_mod, fmp_drop, fmp_compare, fmp_powmod, fmp_gcd, fmp_lcm, fmp_sqrt, fmp_cuberoot, fmp_is_prime, fmp_to_string, fmp_zero, fmp_one, fmp_two, fmp_from_real
+    public :: fmp_number, fmp_init, fmp_print, fmp_add, fmp_subtract, fmp_mul, fmp_div, &
+             fmp_pow, fmp_mod, fmp_drop, fmp_compare, fmp_powmod, fmp_gcd, fmp_lcm, &
+             fmp_sqrt, fmp_cuberoot, fmp_is_prime, fmp_to_string, fmp_zero, fmp_one, &
+             fmp_two, fmp_from_real
 
 contains
 
     subroutine fmp_init(num, str)
         type(fmp_number), intent(out) :: num
         character(len=*), intent(in) :: str
-        integer :: i, len
+        integer :: i, len, start, end_pos, group
 
-        if (len_trim(str) > max_digits) then
+        if (len_trim(str)/3 > max_digits) then
             call template('[FG:F00F00][BOLD]Error: Number exceeds maximum digits[RESET]')
             stop
         end if
 
         len = len_trim(str)
-        allocate (num%digits(len))
-        num%length = len
+        num%length = ceiling(real(len)/3.0)
+        allocate(num%digits(num%length))
 
-        do i = 1, len
-            num%digits(i) = ichar(str(len - i + 1:len - i + 1)) - ichar('0')
+        do i = 1, num%length
+            start = len - (i-1)*3
+            end_pos = max(start-2, 1)
+            group = 0
+            if (start >= 3) then
+                read(str(end_pos:start), '(I3)') group
+            else
+                read(str(1:start), '(I3)') group
+            endif
+            num%digits(i) = group
         end do
     end subroutine fmp_init
 
     subroutine fmp_print(num)
         type(fmp_number), intent(in) :: num
         integer :: i
-
-        do i = num%length, 1, -1
-            write (*, '(I1)', advance='no') num%digits(i)
-        end do
-        write (*, *)
+    
+        if (num%length > 0) then
+            ! Print the most significant group without leading zeros
+            write(*, '(I3)', advance='no') num%digits(num%length)
+            ! Print the remaining groups with leading zeros
+            do i = num%length-1, 1, -1
+                write(*, '(I3.3)', advance='no') num%digits(i)
+            end do
+            write(*, *)
+        else
+            write(*, '(A)') '0'
+        end if
     end subroutine fmp_print
 
     subroutine fmp_zero(num)
         type(fmp_number), intent(out) :: num
-        allocate (num%digits(1))
+        allocate(num%digits(1))
         num%digits(1) = 0
         num%length = 1
     end subroutine fmp_zero
 
     subroutine fmp_one(num)
         type(fmp_number), intent(out) :: num
-        allocate (num%digits(1))
+        allocate(num%digits(1))
         num%digits(1) = 1
         num%length = 1
     end subroutine fmp_one
 
     subroutine fmp_two(num)
         type(fmp_number), intent(out) :: num
-        allocate (num%digits(1))
+        allocate(num%digits(1))
         num%digits(1) = 2
         num%length = 1
     end subroutine fmp_two
@@ -72,27 +89,25 @@ contains
         character(len=32) :: str_num
         integer :: i, len, decimal_pos
 
-        ! Convert real number to string
-        write (str_num, '(F32.16)') real_num
-
-        ! Remove trailing spaces
+        write(str_num, '(F32.16)') real_num
         len = len_trim(str_num)
-
-        ! Find the position of the decimal point
         decimal_pos = index(str_num, '.')
 
-        ! Initialize the fmp_number type
-        allocate (num%digits(len - 1))  ! Exclude the decimal point
-        num%length = len - 1
+        if (decimal_pos > 0) then
+            len = len - 1
+        endif
 
-        ! Convert string digits to integer array
+        num%length = ceiling(real(len)/3.0)
+        allocate(num%digits(num%length))
+        num%digits = 0
+
         do i = 1, len
             if (i /= decimal_pos) then
                 if (i < decimal_pos) then
-                    num%digits(i) = ichar(str_num(i:i)) - ichar('0')
+                    num%digits(ceiling(real(i)/3.0)) = num%digits(ceiling(real(i)/3.0)) * 10 + (ichar(str_num(i:i)) - ichar('0'))
                 else
-                    num%digits(i - 1) = ichar(str_num(i:i)) - ichar('0')
-                end if
+                    num%digits(ceiling(real((i-1))/3.0)) = num%digits(ceiling(real((i-1))/3.0)) * 10 + (ichar(str_num(i:i)) - ichar('0'))
+                endif
             end if
         end do
     end subroutine fmp_from_real
@@ -103,7 +118,7 @@ contains
         integer :: carry, i, max_len
 
         max_len = max(a%length, b%length) + 1
-        allocate (result%digits(max_len))
+        allocate(result%digits(max_len))
         result%length = max_len
 
         carry = 0
@@ -127,7 +142,7 @@ contains
         type(fmp_number), intent(out) :: result
         integer :: borrow, i
 
-        allocate (result%digits(a%length))
+        allocate(result%digits(a%length))
         result%length = a%length
 
         borrow = 0
@@ -151,43 +166,46 @@ contains
     subroutine fmp_mul(a, b, result)
         type(fmp_number), intent(in) :: a, b
         type(fmp_number), intent(out) :: result
-        integer :: i, j, carry, max_len
+        integer :: i, j, carry, temp_prod, max_len
+
         max_len = a%length + b%length
-        allocate (result%digits(max_len))
+        allocate(result%digits(max_len))
         result%length = max_len
         result%digits = 0
+
         do i = 1, a%length
             carry = 0
             do j = 1, b%length
-                result%digits(i + j - 1) = result%digits(i + j - 1) + a%digits(i)*b%digits(j) + carry
-                carry = result%digits(i + j - 1)/base
-                result%digits(i + j - 1) = result%digits(i + j - 1) - carry*base
+                temp_prod = a%digits(i) * b%digits(j) + result%digits(i + j - 1) + carry
+                carry = temp_prod / base
+                result%digits(i + j - 1) = mod(temp_prod, base)
             end do
             result%digits(i + b%length) = carry
         end do
+
         if (result%digits(max_len) == 0) result%length = result%length - 1
     end subroutine fmp_mul
 
     subroutine fmp_div(a, b, result)
         type(fmp_number), intent(in) :: a, b
         type(fmp_number), intent(out) :: result
-        type(fmp_number) :: remainder
+        type(fmp_number) :: remainder, temp_remainder
         integer :: i, max_len, quotient
-        type(fmp_number) :: temp_remainder
+        type(fmp_number) :: temp
 
-        ! Check for division by zero
         if (b%length == 1 .and. b%digits(1) == 0) then
             call template('[FG:F00F00][BOLD]Error: Division by zero[RESET]')
             stop
         end if
 
         max_len = a%length
-        allocate (result%digits(max_len))
+        allocate(result%digits(max_len))
         result%length = max_len
 
         remainder = a
         result%digits = 0
-        do i = a%length - b%length + 1, 1, -1
+
+        do i = a%length, 1, -1
             quotient = 0
             do while (fmp_compare(remainder, b) >= 0)
                 quotient = quotient + 1
@@ -197,7 +215,7 @@ contains
             result%digits(i) = quotient
         end do
 
-        do i = a%length, 1, -1
+        do i = max_len, 1, -1
             if (result%digits(i) /= 0) exit
             result%length = result%length - 1
         end do
@@ -214,27 +232,22 @@ contains
         do i = 1, exp
             temp = result
             call fmp_mul(temp, num, result)
+            call fmp_drop(temp)
         end do
-        call fmp_drop(temp)
     end subroutine fmp_pow
 
     subroutine fmp_mod(a, b, result)
         type(fmp_number), intent(in) :: a, b
         type(fmp_number), intent(out) :: result
-        integer :: i, max_len
         type(fmp_number) :: remainder, temp_remainder
+        integer :: i, max_len
 
         if (b%length == 1 .and. b%digits(1) == 0) then
             call template('[FG:F00F00][BOLD]Error: Division by zero[RESET]')
             stop
         end if
 
-        max_len = a%length
-        allocate (result%digits(max_len))
-        result%length = max_len
-
         remainder = a
-        result%digits = 0
 
         do while (fmp_compare(remainder, b) >= 0)
             call fmp_subtract(remainder, b, temp_remainder)
@@ -242,11 +255,6 @@ contains
         end do
 
         result = remainder
-
-        do i = result%length, 1, -1
-            if (result%digits(i) /= 0) exit
-            result%length = result%length - 1
-        end do
     end subroutine fmp_mod
 
     subroutine fmp_powmod(num, exp, mod, result)
@@ -256,7 +264,6 @@ contains
         type(fmp_number) :: temp, base
         integer :: i
 
-        ! Division by zero check
         if (mod%length == 1 .and. mod%digits(1) == 0) then
             call template('[FG:F00F00][BOLD]Error: Division by zero[RESET]')
             stop
@@ -266,13 +273,10 @@ contains
         base = num
 
         do i = 1, exp
-            temp = result
-            call fmp_mul(temp, base, result)
+            call fmp_mul(result, base, temp)
             call fmp_mod(temp, mod, result)
+            call fmp_drop(temp)
         end do
-
-        call fmp_drop(temp)
-        call fmp_drop(base)
     end subroutine fmp_powmod
 
     subroutine fmp_gcd(a, b, result)
@@ -280,8 +284,8 @@ contains
         type(fmp_number), intent(out) :: result
         type(fmp_number) :: temp, temp_remainder
 
-        ! Division by zero check
-        if (a%length == 1 .and. a%digits(1) == 0 .or. b%length == 1 .and. b%digits(1) == 0) then
+        if ((a%length == 1 .and. a%digits(1) == 0) .or. &
+            (b%length == 1 .and. b%digits(1) == 0)) then
             call template('[FG:F00F00][BOLD]Error: Division by zero[RESET]')
             stop
         end if
@@ -292,21 +296,17 @@ contains
         do while (temp%length /= 0)
             call fmp_mod(result, temp, temp_remainder)
             result = temp_remainder
-            result = temp
             temp = result
         end do
-
-        call fmp_drop(temp)
     end subroutine fmp_gcd
 
     subroutine fmp_lcm(a, b, result)
         type(fmp_number), intent(in) :: a, b
         type(fmp_number), intent(out) :: result
-        type(fmp_number) :: gcd
-        type(fmp_number) :: temp
+        type(fmp_number) :: gcd, temp
 
-        ! Division by zero check
-        if (a%length == 1 .and. a%digits(1) == 0 .or. b%length == 1 .and. b%digits(1) == 0) then
+        if ((a%length == 1 .and. a%digits(1) == 0) .or. &
+            (b%length == 1 .and. b%digits(1) == 0)) then
             call template('[FG:F00F00][BOLD]Error: Division by zero[RESET]')
             stop
         end if
@@ -325,15 +325,14 @@ contains
         type(fmp_number) :: temp, temp2, temp3
         integer :: i, j, k, max_len, len, digit
 
-        ! Division by zero check
         if (num%length == 1 .and. num%digits(1) == 0) then
             call template('[FG:F00F00][BOLD]Error: Division by zero[RESET]')
             stop
         end if
 
         len = num%length
-        max_len = (len + 1)/2
-        allocate (result%digits(max_len))
+        max_len = ceiling(real(len)/2.0)
+        allocate(result%digits(max_len))
         result%length = max_len
         result%digits = 0
 
@@ -344,18 +343,27 @@ contains
                 call fmp_mul(result, result, temp)
                 if (fmp_compare(temp, num) <= 0) then
                     digit = j
+                    call fmp_drop(temp)
                     exit
                 end if
+                call fmp_drop(temp)
             end do
             result%digits(i) = digit
             call fmp_zero(temp2)
-            do k = 1, i - 1
-                temp2%digits(k) = result%digits(k)
-            end do
-            temp2%digits(i) = digit
+            if (i > 1) then
+                temp2%length = i
+                allocate(temp2%digits(i))
+                temp2%digits = 0
+                do k = 1, i-1
+                    temp2%digits(k) = result%digits(k)
+                end do
+            end if
             call fmp_mul(temp2, temp2, temp3)
             call fmp_subtract(num, temp3, temp)
             num = temp
+            call fmp_drop(temp2)
+            call fmp_drop(temp3)
+            call fmp_drop(temp)
         end do
 
         do i = max_len, 1, -1
@@ -370,15 +378,14 @@ contains
         type(fmp_number) :: temp, temp2, temp3
         integer :: i, j, k, max_len, len, digit
 
-        ! Division by zero check
         if (num%length == 1 .and. num%digits(1) == 0) then
             call template('[FG:F00F00][BOLD]Error: Division by zero[RESET]')
             stop
         end if
 
         len = num%length
-        max_len = (len + 2)/3
-        allocate (result%digits(max_len))
+        max_len = ceiling(real(len)/3.0)
+        allocate(result%digits(max_len))
         result%length = max_len
         result%digits = 0
 
@@ -390,19 +397,30 @@ contains
                 call fmp_mul(temp, result, temp2)
                 if (fmp_compare(temp2, num) <= 0) then
                     digit = j
+                    call fmp_drop(temp)
+                    call fmp_drop(temp2)
                     exit
                 end if
+                call fmp_drop(temp)
+                call fmp_drop(temp2)
             end do
             result%digits(i) = digit
             call fmp_zero(temp2)
-            do k = 1, i - 1
-                temp2%digits(k) = result%digits(k)
-            end do
-            temp2%digits(i) = digit
+            if (i > 1) then
+                temp2%length = i
+                allocate(temp2%digits(i))
+                temp2%digits = 0
+                do k = 1, i-1
+                    temp2%digits(k) = result%digits(k)
+                end do
+            end if
             call fmp_mul(temp2, temp2, temp3)
             call fmp_mul(temp3, temp2, temp)
             call fmp_subtract(num, temp, temp2)
             num = temp2
+            call fmp_drop(temp2)
+            call fmp_drop(temp3)
+            call fmp_drop(temp)
         end do
 
         do i = max_len, 1, -1
@@ -414,25 +432,29 @@ contains
     function fmp_is_prime(num) result(is_prime)
         type(fmp_number), intent(inout) :: num
         logical :: is_prime
-        type(fmp_number) :: i, temp, sqrt_num, temp_i
-
+        type(fmp_number) :: i, temp, sqrt_num, temp_i, one, two
+    
         call fmp_sqrt(num, sqrt_num)
         call fmp_two(i)
+        call fmp_one(one)
+        call fmp_two(two)
         is_prime = .true.
-
+    
         do while (fmp_compare(i, sqrt_num) <= 0)
             call fmp_mod(num, i, temp)
-            if (fmp_compare(temp, i) == 0) then
+            if (fmp_compare(temp, one) == 0) then
                 is_prime = .false.
                 exit
             end if
-            call fmp_add(i, i, temp_i)
+            call fmp_add(i, two, temp_i)
             i = temp_i
+            call fmp_drop(temp_i)
         end do
-
+    
         call fmp_drop(i)
         call fmp_drop(temp)
         call fmp_drop(sqrt_num)
+        call fmp_drop(one)
     end function fmp_is_prime
 
     subroutine fmp_to_string(num, str)
@@ -442,13 +464,14 @@ contains
 
         str = ''
         do i = num%length, 1, -1
-            write (str(len(str) + 1:len(str) + 1), '(I1)') num%digits(i)
+            write(str(len(str)+1:len(str)+3), '(Z3)') num%digits(i)
         end do
     end subroutine fmp_to_string
 
     subroutine fmp_drop(num)
         type(fmp_number), intent(inout) :: num
-        deallocate (num%digits)
+        deallocate(num%digits)
+        num%length = 0
     end subroutine fmp_drop
 
     function fmp_compare(a, b) result(res)
@@ -460,6 +483,7 @@ contains
         elseif (a%length < b%length) then
             res = -1
         else
+            res = 0
             do i = a%length, 1, -1
                 if (a%digits(i) > b%digits(i)) then
                     res = 1
@@ -469,7 +493,6 @@ contains
                     return
                 end if
             end do
-            res = 0
         end if
     end function fmp_compare
 
