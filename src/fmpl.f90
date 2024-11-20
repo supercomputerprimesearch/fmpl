@@ -1,4 +1,5 @@
 module fmpl
+    use terminalite
     implicit none
     private
 
@@ -11,7 +12,7 @@ module fmpl
     end type fmp_number
 
     ! Everything is public but helper functions
-    public :: fmp_number, fmp_init, fmp_print, fmp_add, fmp_subtract, fmp_mul, fmp_div, fmp_pow, fmp_mod, fmp_drop, fmp_compare, fmp_powmod, fmp_gcd, fmp_lcm, fmp_sqrt
+    public :: fmp_number, fmp_init, fmp_print, fmp_add, fmp_subtract, fmp_mul, fmp_div, fmp_pow, fmp_mod, fmp_drop, fmp_compare, fmp_powmod, fmp_gcd, fmp_lcm, fmp_sqrt, fmp_cuberoot, fmp_is_prime, fmp_to_string, fmp_zero, fmp_one, fmp_two, fmp_from_real
 
 contains
 
@@ -19,6 +20,11 @@ contains
         type(fmp_number), intent(out) :: num
         character(len=*), intent(in) :: str
         integer :: i, len
+
+        if (len_trim(str) > max_digits) then
+            call template('[FG:F00F00][BOLD]Error: Number exceeds maximum digits[RESET]')
+            stop
+        end if
 
         len = len_trim(str)
         allocate (num%digits(len))
@@ -169,6 +175,12 @@ contains
         integer :: i, max_len, quotient
         type(fmp_number) :: temp_remainder
 
+        ! Check for division by zero
+        if (b%length == 1 .and. b%digits(1) == 0) then
+            call template('[FG:F00F00][BOLD]Error: Division by zero[RESET]')
+            stop
+        end if
+
         max_len = a%length
         allocate (result%digits(max_len))
         result%length = max_len
@@ -212,6 +224,11 @@ contains
         integer :: i, max_len
         type(fmp_number) :: remainder, temp_remainder
 
+        if (b%length == 1 .and. b%digits(1) == 0) then
+            call template('[FG:F00F00][BOLD]Error: Division by zero[RESET]')
+            stop
+        end if
+
         max_len = a%length
         allocate (result%digits(max_len))
         result%length = max_len
@@ -239,7 +256,13 @@ contains
         type(fmp_number) :: temp, base
         integer :: i
 
-        call fmp_init(result, '1')
+        ! Division by zero check
+        if (mod%length == 1 .and. mod%digits(1) == 0) then
+            call template('[FG:F00F00][BOLD]Error: Division by zero[RESET]')
+            stop
+        end if
+
+        call fmp_one(result)
         base = num
 
         do i = 1, exp
@@ -256,6 +279,12 @@ contains
         type(fmp_number), intent(in) :: a, b
         type(fmp_number), intent(out) :: result
         type(fmp_number) :: temp, temp_remainder
+
+        ! Division by zero check
+        if (a%length == 1 .and. a%digits(1) == 0 .or. b%length == 1 .and. b%digits(1) == 0) then
+            call template('[FG:F00F00][BOLD]Error: Division by zero[RESET]')
+            stop
+        end if
 
         result = a
         temp = b
@@ -276,6 +305,12 @@ contains
         type(fmp_number) :: gcd
         type(fmp_number) :: temp
 
+        ! Division by zero check
+        if (a%length == 1 .and. a%digits(1) == 0 .or. b%length == 1 .and. b%digits(1) == 0) then
+            call template('[FG:F00F00][BOLD]Error: Division by zero[RESET]')
+            stop
+        end if
+
         call fmp_gcd(a, b, gcd)
         call fmp_mul(a, b, temp)
         call fmp_div(temp, gcd, result)
@@ -289,6 +324,12 @@ contains
         type(fmp_number), intent(out) :: result
         type(fmp_number) :: temp, temp2, temp3
         integer :: i, j, k, max_len, len, digit
+
+        ! Division by zero check
+        if (num%length == 1 .and. num%digits(1) == 0) then
+            call template('[FG:F00F00][BOLD]Error: Division by zero[RESET]')
+            stop
+        end if
 
         len = num%length
         max_len = (len + 1)/2
@@ -307,7 +348,7 @@ contains
                 end if
             end do
             result%digits(i) = digit
-            call fmp_init(temp2, '0')
+            call fmp_zero(temp2)
             do k = 1, i - 1
                 temp2%digits(k) = result%digits(k)
             end do
@@ -329,6 +370,12 @@ contains
         type(fmp_number) :: temp, temp2, temp3
         integer :: i, j, k, max_len, len, digit
 
+        ! Division by zero check
+        if (num%length == 1 .and. num%digits(1) == 0) then
+            call template('[FG:F00F00][BOLD]Error: Division by zero[RESET]')
+            stop
+        end if
+
         len = num%length
         max_len = (len + 2)/3
         allocate (result%digits(max_len))
@@ -347,7 +394,7 @@ contains
                 end if
             end do
             result%digits(i) = digit
-            call fmp_init(temp2, '0')
+            call fmp_zero(temp2)
             do k = 1, i - 1
                 temp2%digits(k) = result%digits(k)
             end do
@@ -370,7 +417,7 @@ contains
         type(fmp_number) :: i, temp, sqrt_num, temp_i
 
         call fmp_sqrt(num, sqrt_num)
-        call fmp_init(i, '2')
+        call fmp_two(i)
         is_prime = .true.
 
         do while (fmp_compare(i, sqrt_num) <= 0)
